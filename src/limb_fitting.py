@@ -1,13 +1,23 @@
 import numpy as np
+from interpolation import *
 
 
-def find_center(image, **kwargs):
+def find_center(image, xu=None, yu=None, repeat=1, **kwargs):
     edges = find_edges(image, **kwargs)
-    x, y = np.where(edges)
-    if len(x) > 2:
-        x, y = filter_outliers(x, y, **kwargs)
-        xc, yc, r = fitnp(x, y)
-        return xc, yc, r
+    if xu is not None and yu is not None:
+        xe, ye = xu[edges], yu[edges]
+    else:
+        xe, ye = np.where(edges)
+    if len(xe) > 2:
+        xc, yc, r = [], [], []
+        for _ in range(repeat):
+            xf, yf = filter_outliers(xe, ye, **kwargs)
+            xc_, yc_, r_ = fitnp(xf, yf)
+            xc += [xc_]
+            yc += [yc_]
+            r += [r_]
+        #print(np.std(xc), np.std(yc), np.std(r))
+        return np.median(xc), np.median(yc), np.median(r)
     else:
         return 0, 0, 0
 
@@ -61,25 +71,19 @@ def fitnp(x, y):
     return xc * s + mx, yc * s + my, r * s
 
 
-def roll_float(image, dx, dy, **kwargs):
-    dx_ = int(np.floor(dx))
-    dy_ = int(np.floor(dy))
-    ddx, ddy = dx - dx_, dy - dy_
-
-    out = np.zeros_like(image)
-    for i in [0, 1]:
-        for j in [0, 1]:
-            q = np.abs((1 - i - ddx) * (1 - j - ddy))
-            out += np.roll(image, (dx_ + i, dy_ + j), axis=(0, 1)) * q
-    return out
-
-
-def realign(data, **kwargs):
+def realign(data, x0=None, y0=None, xd=None, yd=None, **kwargs):
     data_ = data.copy().reshape((-1, data.shape[-2], data.shape[-1]))
-    xc0, yc0, _ = find_center(data_[0], **kwargs)
 
-    for i in range(1, len(data_)):
+    if x0 is None and y0 is None:
+        x0, y0, _ = find_center(data_[0], **kwargs)
+
+    for i in range(len(data_)):
         xc, yc, _ = find_center(data_[i], **kwargs)
-        data_[i] = roll_float(data_[i], xc0 - xc, yc0 - yc, **kwargs)
+        dx, dy = x0 - xc, y0 - yc
+
+        if xd is not None and yd is not None:
+            data_[i] = interp2d(data_[i], xd - dx,  yd - dy, roll=False, **kwargs)
+        else:
+            data_[i] = interp2d(data_[i], dx, dy, roll=True, **kwargs)
     return data_.reshape(data.shape)
 

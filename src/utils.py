@@ -17,3 +17,21 @@ def bilinear(image, x, y):
             image_ += temp
 
     return image_
+
+
+def crop(data, header):
+    nx, ny = header['NAXIS2'], header['NAXIS1']
+    x0, y0 = header['PXBEG2'] - 1, header['PXBEG1'] - 1
+    return data[...,x0:x0+nx, y0:y0+ny]
+
+
+def crop_grid(xi, yi, header):
+    nx, ny = header['NAXIS2'], header['NAXIS1']
+    x0, y0 = header['PXBEG2'] - 1, header['PXBEG1'] - 1
+    return xi[x0:x0 + nx, y0:y0 + ny] - x0, yi[x0:x0 + nx, y0:y0 + ny] - y0
+
+
+def undistort(image, header, xd, yd, **kwargs):
+    from interpolation import interp2d
+    xd_, yd_ = crop_grid(xd, yd, header)
+    return interp2d(image, xd_, yd_, **kwargs)

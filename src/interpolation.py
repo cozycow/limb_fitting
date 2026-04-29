@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def interp2d(image, x, y, kind='bilinear', roll=False, **kwargs):
+def interp2d(image, x, y, kind='bicubic', roll=False, **kwargs):
 
     def __nearest(z):
         return np.where(np.abs(z) <= 0.5, 1, 0)

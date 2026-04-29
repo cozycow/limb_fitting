@@ -1,4 +1,5 @@
 import numpy as np
+from interpolation import *
 
 
 def bilinear(image, x, y):
@@ -35,3 +36,34 @@ def undistort(image, header, xd, yd, **kwargs):
     from interpolation import interp2d
     xd_, yd_ = crop_grid(xd, yd, header)
     return interp2d(image, xd_, yd_, **kwargs)
+
+
+def kll(data, shifts, niter=20, **kwargs):
+    F = np.zeros_like(data[0])
+    C0 = shifts[0]
+
+    for iter in range(niter):
+        D = np.zeros_like(F)
+        M = np.zeros_like(F)
+        for Di, Ci in zip(data, shifts):
+            Di_ = interp2d(Di - F, *(C0 - Ci), roll=True, **kwargs)
+            M += ~np.isnan(Di_)
+            D += np.nan_to_num(Di_ - D) / M.clip(1)
+
+        D[M == 0] = np.nan
+
+        F_ = np.zeros_like(F)
+        W = np.zeros_like(F)
+
+        for Di, Ci in zip(data, shifts):
+            Di_ = Di - interp2d(D, *(Ci - C0), roll=True, **kwargs)
+
+            Wi_ = ~np.isnan(Di_)
+            W += np.nan_to_num(Wi_)
+            with np.errstate(invalid='ignore'):
+                F_ += np.nan_to_num((Di_ - F_) * Wi_ / W)
+
+        F_[W == 0] = np.nan
+        F = F_.copy()
+
+    return F

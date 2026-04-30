@@ -2,22 +2,22 @@ import numpy as np
 from interpolation import *
 
 
-def bilinear(image, x, y):
+def rebin(image, k, axis=None, update_header=None):
     nx, ny = image.shape
-
-    x_ = np.nan_to_num(np.floor(x), nan=nx).astype(np.int16)
-    y_ = np.nan_to_num(np.floor(y), nan=ny).astype(np.int16)
-    dx, dy = x - x_, y - y_
-
-    image_ = np.zeros_like(x).astype(np.float32)
-    for i in [0, 1]:
-        for j in [0, 1]:
-            q = np.abs((1 - i - dx) * (1 - j - dy))
-            xi, yj = x_ + i, y_ + j
-            temp = image[xi % nx, yj % ny] * q
-            image_ += temp
-
-    return image_
+    if axis == 0:
+        if update_header is not None:
+            update_header['NAXIS2'] = update_header['NAXIS2'] // k
+            update_header['CRPIX2'] = (update_header['CRPIX2'] - 0.5) / k + 0.5
+            update_header['CDELT2'] = update_header['CDELT2'] * k
+        return np.mean(np.reshape(image[:nx // k * k, :], (nx // k, -1, ny)), axis=-2)
+    elif axis == 1:
+        if update_header is not None:
+            update_header['NAXIS1'] = update_header['NAXIS1'] // k
+            update_header['CRPIX1'] = (update_header['CRPIX1'] - 0.5) / k + 0.5
+            update_header['CDELT1'] = update_header['CDELT1'] * k
+        return np.mean(np.reshape(image[:, :ny // k * k], (nx, ny // k, -1)), axis=-1)
+    else:
+        return rebin(rebin(image, k, axis=0, update_header=update_header), k, axis=1, update_header=update_header)
 
 
 def crop(data, header):

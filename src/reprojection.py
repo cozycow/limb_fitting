@@ -55,9 +55,13 @@ class View:
         self.rsun_arc = rsun_arc
         self.dsun = dsun
 
+
+    def copy(self):
+        return View(**self.__dict__)
+
     def update(self, increment=False, inplace=False, **kwargs):
         if not inplace:
-            view_new = View(**self.__dict__)
+            view_new = self.copy()
         else:
             view_new = self
 
@@ -82,6 +86,7 @@ class View:
 
         nx, ny = header['NAXIS2'], header['NAXIS1']
         xc, yc = header['CRPIX2'] - 1, header['CRPIX1'] - 1
+
         crlt, crln = header['CRLT_OBS'], header['CRLN_OBS']
 
         if 'RADIUS' in header:
@@ -181,12 +186,19 @@ class View:
         grid, _ = transform(grid)
         return grid
 
-    def reproject(self, image, view, grid=None, **kwargs):
+    def reproject(self, image, view, grid=None, distort=None, **kwargs):
         transform = self.to_carrington(**kwargs) - view.to_carrington(**kwargs)
         if grid is None:
             grid = self.grid(**kwargs)
 
         grid_, alpha = transform(grid)
+
+        if distort is not None:
+            xd, yd = distort
+            xi = interp2d(xd, *grid_, kind='bilinear')
+            yi = interp2d(yd, *grid_, kind='bilinear')
+            grid_ = (xi, yi)
+
         return interp2d(image, *grid_, **kwargs) * alpha
 
     def mu(self, *args, **kwargs):

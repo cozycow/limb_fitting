@@ -2,12 +2,9 @@ import numpy as np
 from interpolation import *
 
 
-def find_center(image, xu=None, yu=None, repeat=1, **kwargs):
+def find_center(image, repeat=1, **kwargs):
     edges = find_edges(image, **kwargs)
-    if xu is not None and yu is not None:
-        xe, ye = xu[edges], yu[edges]
-    else:
-        xe, ye = np.where(edges)
+    xe, ye = np.where(edges)
     if len(xe) > 2:
         xc, yc, r = [], [], []
         for _ in range(repeat):
@@ -16,7 +13,6 @@ def find_center(image, xu=None, yu=None, repeat=1, **kwargs):
             xc += [xc_]
             yc += [yc_]
             r += [r_]
-        #print(np.std(xc), np.std(yc), np.std(r))
         return np.median(xc), np.median(yc), np.median(r)
     else:
         return 0, 0, 0
@@ -71,7 +67,7 @@ def fitnp(x, y):
     return xc * s + mx, yc * s + my, r * s
 
 
-def realign(data, x0=None, y0=None, xd=None, yd=None, **kwargs):
+def realign(data, x0=None, y0=None, **kwargs):
     data_ = data.copy().reshape((-1, data.shape[-2], data.shape[-1]))
 
     if x0 is None and y0 is None:
@@ -80,10 +76,7 @@ def realign(data, x0=None, y0=None, xd=None, yd=None, **kwargs):
     for i in range(len(data_)):
         xc, yc, _ = find_center(data_[i], **kwargs)
         dx, dy = x0 - xc, y0 - yc
+        data_[i] = interp2d(data_[i], dx, dy, roll=True, **kwargs)
 
-        if xd is not None and yd is not None:
-            data_[i] = interp2d(data_[i], xd - dx,  yd - dy, roll=False, **kwargs)
-        else:
-            data_[i] = interp2d(data_[i], dx, dy, roll=True, **kwargs)
     return data_.reshape(data.shape)
 

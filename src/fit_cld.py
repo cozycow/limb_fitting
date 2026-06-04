@@ -16,7 +16,7 @@ def moffat(x, alpha=1., beta=1.):
     return (1 + (x / alpha) ** 2) ** (-beta)
 
 
-def model(r, sigma, alpha=1, beta=1, epsilon=1., scale=1., bias=0., rsun=1.):
+def model(r, sigma=1., alpha=1., beta=1., epsilon=1., scale=1., bias=0., rsun=1.):
     from scipy.signal import fftconvolve
 
     dr = 0.05

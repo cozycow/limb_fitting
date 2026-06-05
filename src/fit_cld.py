@@ -15,12 +15,13 @@ def moffat(x, alpha=1., beta=1.):
     return (1 + (x / alpha) ** 2) ** (-beta)
 
 
-def model(args, rmax, resolution=0.01, window=511):
+def model(args, r, resolution=0.01, window=511):
     from scipy.signal import fftconvolve
     from scipy.ndimage import gaussian_filter
 
     alpha, beta, epsilon, scale, bias, rsun, sigma = args
 
+    rmax = int(np.ceil(np.max(r)))
     ri = np.arange(-rmax, rmax + 1, resolution)
     qi = neckel(np.sqrt((1 - ri ** 2 / rsun ** 2).clip(0)))
     qi = gaussian_filter(qi, sigma / resolution)
@@ -34,15 +35,17 @@ def model(args, rmax, resolution=0.01, window=511):
     P /= np.sum(P)
     Q_ = fftconvolve(Q, P, mode='same')
     Q_ = Q_ * epsilon + Q * (1 - epsilon)
-    return Q_[rmax, rmax:] * scale + bias
+
+    q = np.interp(r, np.arange(-rmax, rmax+1), Q_[rmax])
+    return q * scale + bias
 
 
 def fit_cld(image, **kwargs):
     from scipy.optimize import least_squares
     from limb_fitting import find_center
 
-    def residuals(args, profile, rmax, dr):
-        return np.nan_to_num(model(args, rmax, dr) / profile - 1)
+    def residuals(args, r, profile):
+        return np.nan_to_num(profile / model(args, r) - 1)
 
     nx, ny = image.shape
     xc, yc, rsun = find_center(image)
@@ -61,5 +64,8 @@ def fit_cld(image, **kwargs):
 
     result = least_squares(residuals, np.array([2, 1.5, 0.25, 1, 0, rsun, 0.9]),
                            bounds=([1, 1, 0, 0.5, -0.1, rsun-2, 0.5], [3, 2, 1, 2, 0.1, rsun+2, 1.5]),
-                           args=(profile, int(np.max(r)), 0.01), **kwargs)
-    return r, profile, result.x
+                           args=(r, profile), **kwargs)
+
+    params = result.x
+    fit = model(params, r)
+    return params, r, profile, fit

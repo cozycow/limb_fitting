@@ -16,44 +16,48 @@ def moffat(x, alpha=1., beta=1.):
     return (1 + (x / alpha) ** 2) ** (-beta)
 
 
-def model(r, sigma=1., alpha=1., beta=1., epsilon=1., scale=1., bias=0., rsun=1.):
+def model(args, alpha, rmax, dr=0.1):
     from scipy.signal import fftconvolve
+    from scipy.ndimage import gaussian_filter
 
-    dr = 0.05
-    rmax = np.ceil(rsun + 1000)
-    R = np.arange(-rmax, rmax + dr / 2, dr)
-    Q = neckel(np.sqrt((1 - (R / rsun) ** 2).clip(0)))
-    G = np.exp(-R ** 2 / 2 / sigma ** 2)
-    G /= np.sum(G)
-    Q = fftconvolve(Q, G, mode='same')
-    P = moffat(R, alpha=alpha, beta=beta)
+    beta, epsilon, scale, bias, rsun, sigma = args
+
+    ri = np.arange(-rmax,rmax+1,dr)
+    qi = neckel(np.sqrt((1 - ri ** 2 / rsun ** 2).clip(0)))
+    qi = gaussian_filter(qi, sigma / dr)
+
+    xi, yi = np.mgrid[-rmax:rmax+1, -rmax:rmax+1]
+    Q = np.interp(np.sqrt(xi ** 2 + yi ** 2), ri, qi)
+
+    xi, yi = np.mgrid[-511:512,-511:512]
+    r2 = xi ** 2 + yi ** 2
+    P = 1 / (1 + r2 / alpha ** 2) ** beta
     P /= np.sum(P)
-    p = fftconvolve(Q, P, mode='same')
-    q = p * epsilon + (1 - epsilon) * Q
-    q = np.interp(r, R, q)
-    return q * scale + bias
+    Q_ = fftconvolve(Q, P, mode='same')
+    Q_ = Q_ * epsilon + Q * (1 - epsilon)
+    return Q_[rmax, rmax:] * scale + bias
 
 
-def fit_cld(image):
-    from scipy.optimize import curve_fit
-    from limb_fitting import find_center
+def fit_cld(image, alpha=2., **kwargs):
+    from scipy.optimize import least_squares
+
+    def residuals(args, profile, alpha, rmax, dr):
+        return np.nan_to_num(model(args, alpha, rmax, dr) / profile - 1)
 
     nx, ny = image.shape
     xc, yc, rsun = find_center(image)
     xi, yi = np.mgrid[:nx, :ny]
-
     ri = np.sqrt((xi - xc) ** 2 + (yi - yc) ** 2)
-    r = np.arange(-0.5, np.floor(rsun + 50), 1)
+    r = np.arange(-0.5, np.floor(rsun + 100), 1)
 
-    q = []
+    profile = []
     for a, b in zip(r[:-1], r[1:]):
         t = np.where(np.all([ri > a, ri < b], axis=0))
-        q += [np.nanmedian(image[t])]
+        profile += [np.nanmedian(image[t])]
 
-    q = np.array(q)
-    q /= np.nanpercentile(q, 99)
+    profile = np.array(profile)
+    profile /= np.nanpercentile(profile, 99)
     r = (r[:-1] + r[1:]) / 2
 
-    params, _ = curve_fit(model, r, q, bounds=([0.7, 1, 0.6, 0.1, 0.8, 0, rsun - 2], [1.2, 5, 1.2, 0.9, 1.2, 0.2, rsun + 2]),
-                          nan_policy='omit', sigma=np.sqrt(q))
-    return r, q, params
+    result = least_squares(residuals, np.array([1.5, 0.25, 1, 0, rsun, 0.9]), args=(profile, alpha, int(np.max(r)), 0.1), **kwargs)
+    return r, profile, result.x

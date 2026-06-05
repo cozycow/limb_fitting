@@ -1,7 +1,6 @@
 import numpy as np
 
 
-
 def neckel(mu):
     p = [0.48767921486914473,
          -1.6848471461910317,
@@ -16,20 +15,20 @@ def moffat(x, alpha=1., beta=1.):
     return (1 + (x / alpha) ** 2) ** (-beta)
 
 
-def model(args, alpha, rmax, dr=0.1):
+def model(args, rmax, resolution=0.01, window=511):
     from scipy.signal import fftconvolve
     from scipy.ndimage import gaussian_filter
 
-    beta, epsilon, scale, bias, rsun, sigma = args
+    alpha, beta, epsilon, scale, bias, rsun, sigma = args
 
-    ri = np.arange(-rmax,rmax+1,dr)
+    ri = np.arange(-rmax, rmax + 1, resolution)
     qi = neckel(np.sqrt((1 - ri ** 2 / rsun ** 2).clip(0)))
-    qi = gaussian_filter(qi, sigma / dr)
+    qi = gaussian_filter(qi, sigma / resolution)
 
     xi, yi = np.mgrid[-rmax:rmax+1, -rmax:rmax+1]
     Q = np.interp(np.sqrt(xi ** 2 + yi ** 2), ri, qi)
 
-    xi, yi = np.mgrid[-511:512,-511:512]
+    xi, yi = np.mgrid[-window:window+1,-window:window+1]
     r2 = xi ** 2 + yi ** 2
     P = 1 / (1 + r2 / alpha ** 2) ** beta
     P /= np.sum(P)
@@ -38,11 +37,12 @@ def model(args, alpha, rmax, dr=0.1):
     return Q_[rmax, rmax:] * scale + bias
 
 
-def fit_cld(image, alpha=2., **kwargs):
+def fit_cld(image, **kwargs):
     from scipy.optimize import least_squares
+    from limb_fitting import find_center
 
-    def residuals(args, profile, alpha, rmax, dr):
-        return np.nan_to_num(model(args, alpha, rmax, dr) / profile - 1)
+    def residuals(args, profile, rmax, dr):
+        return np.nan_to_num(model(args, rmax, dr) / profile - 1)
 
     nx, ny = image.shape
     xc, yc, rsun = find_center(image)
@@ -59,5 +59,7 @@ def fit_cld(image, alpha=2., **kwargs):
     profile /= np.nanpercentile(profile, 99)
     r = (r[:-1] + r[1:]) / 2
 
-    result = least_squares(residuals, np.array([1.5, 0.25, 1, 0, rsun, 0.9]), args=(profile, alpha, int(np.max(r)), 0.1), **kwargs)
+    result = least_squares(residuals, np.array([2, 1.5, 0.25, 1, 0, rsun, 0.9]),
+                           bounds=([1, 1, 0, 0.5, -0.1, rsun-2, 0.5], [3, 2, 1, 2, 0.1, rsun+2, 1.5]),
+                           args=(profile, int(np.max(r)), 0.01), **kwargs)
     return r, profile, result.x

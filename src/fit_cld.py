@@ -15,11 +15,9 @@ def moffat(x, alpha=1., beta=1.):
     return (1 + (x / alpha) ** 2) ** (-beta)
 
 
-def model(args, r, resolution=0.01, window=511):
+def model(r, alpha, beta, epsilon, scale, bias, rsun, sigma, resolution=0.01, window=511):
     from scipy.signal import fftconvolve
     from scipy.ndimage import gaussian_filter
-
-    alpha, beta, epsilon, scale, bias, rsun, sigma = args
 
     rmax = int(np.ceil(np.max(r)))
     ri = np.arange(-rmax, rmax + 1, resolution)
@@ -45,7 +43,7 @@ def fit_cld(image, **kwargs):
     from limb_fitting import find_center
 
     def residuals(args, r, profile):
-        return np.nan_to_num(profile / model(args, r) - 1)
+        return np.nan_to_num(profile / model(r, *args) - 1)
 
     nx, ny = image.shape
     xc, yc, rsun = find_center(image)
@@ -67,5 +65,5 @@ def fit_cld(image, **kwargs):
                            args=(r, profile), **kwargs)
 
     params = result.x
-    fit = model(params, r)
+    fit = model(r, *params)
     return params, r, profile, fit

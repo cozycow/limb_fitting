@@ -1,4 +1,5 @@
 import numpy as np
+from limb_fitting import find_center
 
 
 def neckel(mu):
@@ -15,7 +16,7 @@ def moffat(x, alpha=1., beta=1.):
     return (1 + (x / alpha) ** 2) ** (-beta)
 
 
-def model(r, alpha, beta, epsilon, scale, bias, rsun, sigma, resolution=0.01, window=511):
+def model(r, beta, epsilon, scale, bias, rsun, sigma, alpha=2, resolution=0.01, window=255):
     from scipy.signal import fftconvolve
     from scipy.ndimage import gaussian_filter
 
@@ -38,18 +39,12 @@ def model(r, alpha, beta, epsilon, scale, bias, rsun, sigma, resolution=0.01, wi
     return q * scale + bias
 
 
-def fit_cld(image, **kwargs):
-    from scipy.optimize import least_squares
-    from limb_fitting import find_center
-
-    def residuals(args, r, profile):
-        return np.nan_to_num(profile / model(r, *args) - 1)
-
+def scan(image, h=100):
     nx, ny = image.shape
     xc, yc, rsun = find_center(image)
     xi, yi = np.mgrid[:nx, :ny]
     ri = np.sqrt((xi - xc) ** 2 + (yi - yc) ** 2)
-    r = np.arange(-0.5, np.floor(rsun + 100), 1)
+    r = np.arange(-0.5, np.floor(rsun + h), 1)
 
     profile = []
     for a, b in zip(r[:-1], r[1:]):
@@ -59,9 +54,19 @@ def fit_cld(image, **kwargs):
     profile = np.array(profile)
     profile /= np.nanpercentile(profile, 99)
     r = (r[:-1] + r[1:]) / 2
+    return r, profile
 
-    result = least_squares(residuals, np.array([2, 1.5, 0.25, 1, 0, rsun, 0.9]),
-                           bounds=([1, 1, 0, 0.5, -0.1, rsun-2, 0.5], [3, 2, 1, 2, 0.1, rsun+2, 1.5]),
+
+def fit_cld(image, **kwargs):
+    from scipy.optimize import least_squares
+
+    def residuals(args, r, profile):
+        return np.nan_to_num(profile / model(r, *args) - 1)
+
+    xc, yc, rsun = find_center(image)
+    r, profile = scan(image)
+    result = least_squares(residuals, np.array([1.5, 0.25, 1, 0, rsun, 0.9]),
+                           bounds=([1, 0, 0.5, -0.1, rsun-2, 0.5], [2, 1, 2, 0.1, rsun+2, 1.5]),
                            args=(r, profile), **kwargs)
 
     params = result.x

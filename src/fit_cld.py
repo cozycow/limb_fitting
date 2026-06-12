@@ -37,7 +37,7 @@ def model(r, alpha, beta, epsilon, scale, bias, rsun, sigma, resolution=0.05, **
     return q * scale + bias
 
 
-def scan(image, h=200, phi0=0, phi1=360, **kwargs):
+def scan(image, h=100, phi0=0, phi1=360, **kwargs):
     from scipy.ndimage import map_coordinates
     xc, yc, rsun = find_center(image)
     r, phi = np.mgrid[:rsun + h,phi0:phi1]

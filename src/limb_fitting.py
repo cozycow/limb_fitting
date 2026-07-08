@@ -64,7 +64,3 @@ def fitnp(x, y):
     xc, yc = -q[1] / q[0], -q[2] / q[0]
     r = np.sqrt(xc ** 2 + yc ** 2 + 2 / q[0])
     return xc * s + mx, yc * s + my, r * s
-
-
-
-

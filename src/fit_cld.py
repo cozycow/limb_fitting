@@ -37,7 +37,7 @@ def model(r, alpha, beta, epsilon, scale, bias, rsun, sigma, resolution=0.05, **
     return q * scale + bias
 
 
-def scan(image, r0=0, h=200, phi0=0, phi1=360, **kwargs):
+def scan(image, r0=0, h=200, phi0=0, phi1=360, dphi=1, **kwargs):
     from scipy.ndimage import map_coordinates
 
     if 'xc' not in kwargs and 'yc' not in kwargs and 'rsun' not in kwargs:
@@ -47,7 +47,7 @@ def scan(image, r0=0, h=200, phi0=0, phi1=360, **kwargs):
         yc = kwargs['yc']
         rsun = kwargs['rsun']
 
-    r, phi = np.mgrid[r0:rsun + h,phi0:phi1]
+    r, phi = np.mgrid[r0:rsun + h,phi0:phi1:dphi]
     Q = map_coordinates(image, (r * np.cos(phi * np.pi / 180) + xc, r * np.sin(phi * np.pi / 180) + yc),
                         order=3, mode='constant', cval=np.nan)
     profile = np.nanmedian(Q, axis=1)
